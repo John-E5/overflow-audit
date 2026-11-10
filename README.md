@@ -35,11 +35,11 @@ Each offender is `tag#id.class@right`: the element, and where its right edge lan
 ## What counts
 
 - **Fails:** the page scrolls sideways by more than 1px (anything less is rounding), or an element sticks out past the right edge of the screen, or past the left edge on a right-to-left page.
-- **Named:** up to three of the outermost elements that stick out; their children aren't listed again. Elements inside open shadow roots count too, named after their host, as `my-widget>div.wide@600`. When nothing sticks out but the page still scrolls, as with a long word or URL, the element whose text spills out is named.
+- **Named:** up to three of the outermost elements that stick out; their children aren't listed again. Elements inside open shadow roots count too, named after their host, as `my-widget>div.wide@600`. When nothing sticks out but the page still scrolls, as with a long word or URL, the element whose text spills out is named (`body` for text directly inside it). When an element sticks out but the page reports no sideways scroll, because `<html>` or `<body>` clips it, the line leaves out `overflow=` and lists only the offenders.
 - **Passes:**
   - content inside a horizontal scroller (`overflow-x: auto`), such as a wide table;
-  - content clipped by an `overflow: hidden` container, such as a carousel;
-  - `position: fixed` elements, such as a closed off-canvas menu parked off screen, because they can't make the page scroll;
+  - content clipped by an `overflow: hidden` container, such as a carousel, or by `contain: paint` or `content-visibility`;
+  - `position: fixed` elements, such as a closed off-canvas menu parked off screen, because they can't make the page scroll (unless an ancestor with a transform, filter, `will-change`, `backdrop-filter` or `container-type` makes them scroll with it);
   - shapes drawn outside their `<svg>`, which don't widen the page;
   - content off the left edge of a left-to-right page (or the right edge of a right-to-left one), which can't be scrolled to;
   - anything you choose to ignore.
@@ -50,6 +50,8 @@ Each offender is `tag#id.class@right`: the element, and where its right edge lan
 - **`overflow-x: hidden` on `<html>` or `<body>` doesn't fix it on phones.** Chrome on Android still widens the page to fit the content, so it shows zoomed out or wobbles sideways, and overflow-audit (which runs Chromium) still fails it. Clip a wrapper element inside `<body>` instead, or fix the element that sticks out.
 - **Pages without a viewport meta tag pass.** Without `<meta name="viewport" content="width=device-width, initial-scale=1">`, a phone lays the page out 980px wide and shrinks it to fit, so nothing scrolls sideways. The page will be tiny, though, so add the tag.
 - **Paths resolve like links do.** A path starting with `/` replaces the base URL's path, so `/intro` against `--base https://x.com/app` gives `https://x.com/intro`. Leave off the leading slash (`intro`) to get `https://x.com/app/intro`.
+- **Git Bash on Windows rewrites paths.** It turns `/pricing` into `C:/Program Files/Git/pricing` before overflow-audit sees it, which is refused as not an http(s) URL. Run `export MSYS_NO_PATHCONV=1` first, or use full URLs.
+- **A `--setup` module must not leave timers or sockets open.** overflow-audit exits once its work is done and nothing is left running, so an open interval, server or database connection keeps it from exiting. Close them before your function returns.
 - **Off-canvas menus and right-to-left pages are handled.** A closed menu that is `position: fixed` passes, because it can't make the page scroll. One that is `position: absolute` fails, because it can. On a right-to-left page, content past the left edge is what counts.
 
 ## Options

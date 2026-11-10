@@ -67,6 +67,12 @@ describe('overflow-audit CLI', () => {
     expect(r.stdout).toContain('1 of 4 checks failed.');
   });
 
+  it('takes URLs after --', async () => {
+    const r = await run(['--base', server.url, '--settle', '0', '--', '/fits.html']);
+    expect(r.code).toBe(0);
+    expect(r.stdout).toContain(`OK   ${server.url}/fits.html @390`);
+  });
+
   it('adds --ignore selectors to the defaults', async () => {
     const r = await run(['--base', server.url, '/ignored.html', '--settle', '0', '--ignore', '.ad']);
     expect(r.code).toBe(0);

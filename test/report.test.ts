@@ -4,12 +4,14 @@ import { exitCode, formatResult, summary } from '../src/report.js';
 
 const ok: Result = { url: 'http://h/a', width: 390, ok: true, overflow: 0, offenders: [] };
 const bad: Result = { url: 'http://h/b', width: 360, ok: false, overflow: 210, offenders: ['div.hero@600', 'img@590'] };
+const clippedByPage: Result = { url: 'http://h/d', width: 390, ok: false, overflow: 0, offenders: ['div@600'] };
 const err: Result = { url: 'http://h/c', width: 390, ok: false, overflow: 0, offenders: [], error: 'HTTP 404' };
 
 describe('formatResult', () => {
   it('formats each outcome', () => {
     expect(formatResult(ok)).toBe('OK   http://h/a @390');
     expect(formatResult(bad)).toBe('FAIL http://h/b @360 overflow=210px offenders=[div.hero@600, img@590]');
+    expect(formatResult(clippedByPage)).toBe('FAIL http://h/d @390 offenders=[div@600]');
     expect(formatResult(err)).toBe('ERR  http://h/c @390 HTTP 404');
   });
 });

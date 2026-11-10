@@ -20,4 +20,10 @@ describe('resolveUrl', () => {
   it('needs a base for a path', () => {
     expect(() => resolveUrl('/a')).toThrow('"/a" is a path: pass a base URL (--base) to resolve it');
   });
+
+  it('rejects URLs that are not http(s), such as a path Git Bash turned into a Windows path', () => {
+    expect(() => resolveUrl('C:/Program Files/Git/pricing', 'http://h')).toThrow(/not an http\(s\) URL[\s\S]*MSYS_NO_PATHCONV=1/);
+    expect(() => resolveUrl('file:///etc/passwd', 'http://h')).toThrow('not an http(s) URL');
+    expect(() => resolveUrl('chrome://crash')).toThrow('not an http(s) URL');
+  });
 });

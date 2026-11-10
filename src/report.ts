@@ -5,7 +5,9 @@ export function formatResult(r: Result): string {
   if (r.error) return `ERR  ${where} ${r.error}`;
   const note = r.screenshotError ? ` (no screenshot: ${r.screenshotError})` : '';
   if (r.ok) return `OK   ${where}${note}`;
-  return `FAIL ${where} overflow=${r.overflow}px offenders=[${r.offenders.join(', ')}]${note}`;
+  // An element can stick out while the page itself reports no overflow (<html> or <body> clips it); say only what sticks out.
+  const overflow = r.overflow > 0 ? ` overflow=${r.overflow}px` : '';
+  return `FAIL ${where}${overflow} offenders=[${r.offenders.join(', ')}]${note}`;
 }
 
 export function summary(results: Result[]): string {

@@ -92,7 +92,9 @@ main().then(
     process.exitCode = code;
   },
   (err: unknown) => {
-    console.error(err instanceof UsageError ? err.message : `overflow-audit: ${err instanceof Error ? err.message : String(err)}`);
+    const message = err instanceof Error ? err.message : String(err);
+    // Usage errors, and errors that already say where they come from, are printed as they are.
+    console.error(err instanceof UsageError || message.startsWith('overflow-audit') ? message : `overflow-audit: ${message}`);
     process.exitCode = 2;
   },
 );
