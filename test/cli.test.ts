@@ -87,9 +87,19 @@ describe('overflow-audit CLI', () => {
     expect(badWidth.code).toBe(2);
     expect(badWidth.stderr).toContain('--width must be a positive whole number');
 
+    const badTimeout = await run(['--base', server.url, '/fits.html', '--timeout', '0']);
+    expect(badTimeout.code).toBe(2);
+    expect(badTimeout.stderr).toContain('--timeout must be a positive whole number');
+
     const badSetup = await run(['--base', server.url, '/fits.html', '--setup', tmpFile('setup.mjs', 'export const x = 1;\n')]);
     expect(badSetup.code).toBe(2);
     expect(badSetup.stderr).toContain('must export a default async function');
+  });
+
+  it('gives up on a page after --timeout and exits 2', async () => {
+    const r = await run(['--base', server.url, '/never.png', '--settle', '0', '--timeout', '1000']);
+    expect(r.code).toBe(2);
+    expect(r.stdout).toContain('Timeout 1000ms exceeded');
   });
 
   it('exits 2 when a page does not load', async () => {

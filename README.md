@@ -49,6 +49,7 @@ Each offender is `tag#id.class@right`: the element, and where its right edge lan
 | `--base URL` | | Resolves paths like `/pricing` |
 | `--width 390` | `390` | Repeat to check several widths |
 | `--settle 1500` | `1500` | Milliseconds to wait after load for animations and late layout |
+| `--timeout 30000` | `30000` | Milliseconds to wait for a page to start rendering before reporting it as an error. A stalled image or tracker doesn't count: the waits for the load event and for the network to go quiet are each capped at 10 s |
 | `--setup ./login.mjs` | | Sign in first (see below) |
 | `--screenshots dir` | | Saves a full-page PNG per page and width |
 | `--ignore selector` | | Hides matching elements during the check. Repeatable. `nextjs-portal` and `[data-overflow-audit-ignore]` are always hidden |
@@ -87,7 +88,7 @@ export default async function (context, { base }) {
 
 - **Prerequisites:** start your app before this step, and use Node 22 or later (`actions/setup-node`).
 - **Screenshots:** they are uploaded as the `overflow-audit` artifact, even when the check fails.
-- **Inputs:** `urls`, `file`, `base`, `widths`, `settle`, `setup`, `ignore` (one per line), `screenshots` (`true` or `false`), `artifact-name`, and `package` (the npm install spec, for pinning a version).
+- **Inputs:** `urls`, `file`, `base`, `widths`, `settle`, `timeout`, `setup`, `ignore` (one per line), `screenshots` (`true` or `false`), `artifact-name`, and `package` (the npm install spec, for pinning a version).
 
 ## From code
 

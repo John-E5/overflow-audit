@@ -8,8 +8,11 @@ import { resolveUrl } from './urls.js';
 export const DEFAULT_IGNORE = ['nextjs-portal', '[data-overflow-audit-ignore]'];
 export const DEFAULT_WIDTHS = [390];
 export const DEFAULT_SETTLE_MS = 1500;
+export const DEFAULT_TIMEOUT_MS = 30_000;
 /** iPhone-class viewport height. Height doesn't affect sideways overflow, but it shapes the screenshots. */
 const MOBILE_HEIGHT = 844;
+/** Caps on the wait for the load event and for network idle, so one stalled image or tracker can't fail a page. */
+const LOAD_CAP_MS = 10_000;
 const NETWORK_IDLE_CAP_MS = 10_000;
 
 export interface Result {
@@ -35,6 +38,8 @@ export interface AuditOptions {
   widths?: number[];
   /** Extra wait after the page loads, for animations and late layout. Default 1500 ms. */
   settleMs?: number;
+  /** How long to wait for a page to start rendering before reporting an error. Default 30 000 ms. */
+  timeoutMs?: number;
   /** Signs in once. The resulting cookies and storage are reused for every page. */
   setup?: (context: BrowserContext, info: { base?: string }) => Promise<void>;
   /** Writes a full-page PNG per page and width into this folder. */
@@ -53,6 +58,8 @@ export async function audit(options: AuditOptions): Promise<Result[]> {
   if (widths.some((w) => !Number.isInteger(w) || w <= 0)) throw new Error('audit: widths must be positive whole numbers');
   const ignore = [...DEFAULT_IGNORE, ...(options.ignore ?? [])];
   const settleMs = options.settleMs ?? DEFAULT_SETTLE_MS;
+  const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+  if (!Number.isInteger(timeoutMs) || timeoutMs <= 0) throw new Error('audit: timeoutMs must be a positive whole number');
 
   const { chromium } = await loadPlaywright();
   if (options.screenshotsDir) await mkdir(options.screenshotsDir, { recursive: true });
@@ -66,11 +73,23 @@ export async function audit(options: AuditOptions): Promise<Result[]> {
         deviceScaleFactor: 2,
         isMobile: true,
         hasTouch: true,
+        // The ignore styles are injected inline, which a strict Content-Security-Policy would block.
+        bypassCSP: true,
         storageState,
       });
       try {
-        const page = await context.newPage();
-        for (const url of urls) results.push(await check(page, url, width, ignore, settleMs, options.screenshotsDir));
+        // One page per width, reused across URLs. Cookies, localStorage and sessionStorage carry over from one URL
+        // to the next (as they would for a visitor), but not across widths, which each get a fresh context.
+        let page = await context.newPage();
+        for (const url of urls) {
+          const result = await check(page, url, width, ignore, settleMs, timeoutMs, options.screenshotsDir);
+          results.push(result);
+          if (result.error) {
+            // A crashed or wedged page would fail every URL after it, so start the next one on a fresh page.
+            await page.close().catch(() => {});
+            page = await context.newPage();
+          }
+        }
       } finally {
         await context.close();
       }
@@ -98,11 +117,12 @@ async function runSetup(browser: Browser, setup: NonNullable<AuditOptions['setup
   }
 }
 
-async function check(page: Page, url: string, width: number, ignore: string[], settleMs: number, dir: string | undefined): Promise<Result> {
+async function check(page: Page, url: string, width: number, ignore: string[], settleMs: number, timeoutMs: number, dir: string | undefined): Promise<Result> {
   const failed = (error: string): Result => ({ url, width, ok: false, overflow: 0, offenders: [], error });
   try {
-    const response = await page.goto(url, { waitUntil: 'load' });
+    const response = await page.goto(url, { waitUntil: 'domcontentloaded', timeout: timeoutMs });
     if (response && response.status() >= 400) return failed(`HTTP ${response.status()}`);
+    await page.waitForLoadState('load', { timeout: LOAD_CAP_MS }).catch(() => {});
     await page.waitForLoadState('networkidle', { timeout: NETWORK_IDLE_CAP_MS }).catch(() => {});
     if (settleMs > 0) await page.waitForTimeout(settleMs);
     // One rule per selector, so one invalid selector can't void the others.

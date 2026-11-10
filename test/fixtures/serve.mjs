@@ -1,11 +1,13 @@
 // Serves the fixture pages. Tests import serveFixtures(); CI runs this file directly (PORT=4173) for the action self-test.
 // /cookie.html is the one dynamic page: it only fits when the request carries the cookie audit=1.
+// /csp.html is served with a strict Content-Security-Policy, and /never.png (used by /stalled.html) never answers.
 import { readFile } from 'node:fs/promises';
 import { createServer } from 'node:http';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const DIR = fileURLToPath(new URL('.', import.meta.url));
+const HEADERS = { '/csp.html': { 'Content-Security-Policy': "style-src 'self'" } };
 
 export const page = (body) =>
   `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><style>body{margin:0;font:16px sans-serif}</style></head><body>${body}</body></html>`;
@@ -19,6 +21,7 @@ export async function serveFixtures(port = 0) {
       res.end(page(signedIn ? '<p>signed in</p>' : '<div class="login-wall" style="width:800px">please sign in</div>'));
       return;
     }
+    if (path === '/never.png') return; // Never answers; close() drops the connection.
     if (!/^\/[\w-]+\.html$/.test(path)) {
       res.writeHead(404);
       res.end('not found');
@@ -26,7 +29,7 @@ export async function serveFixtures(port = 0) {
     }
     try {
       const html = await readFile(join(DIR, path.slice(1)), 'utf8');
-      res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+      res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', ...HEADERS[path] });
       res.end(html);
     } catch {
       res.writeHead(404);

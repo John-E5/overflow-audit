@@ -21,6 +21,9 @@ inputs:
   settle:
     description: Milliseconds to wait after each page loads.
     default: "1500"
+  timeout:
+    description: Milliseconds to wait for each page to start rendering before reporting it as an error.
+    default: "30000"
   setup:
     description: Path to an ESM module whose default export signs in (context, { base }) => Promise<void>.
     default: ""
@@ -56,6 +59,7 @@ runs:
         BASE: ${{ inputs.base }}
         WIDTHS: ${{ inputs.widths }}
         SETTLE: ${{ inputs.settle }}
+        TIMEOUT: ${{ inputs.timeout }}
         SETUP: ${{ inputs.setup }}
         IGNORE: ${{ inputs.ignore }}
         SCREENSHOTS: ${{ inputs.screenshots }}
@@ -66,6 +70,7 @@ runs:
         [ -n "$BASE" ] && args+=(--base "$BASE")
         for w in $WIDTHS; do args+=(--width "$w"); done
         args+=(--settle "$SETTLE")
+        args+=(--timeout "$TIMEOUT")
         [ -n "$SETUP" ] && args+=(--setup "$SETUP")
         while IFS= read -r s; do [ -n "$s" ] && args+=(--ignore "$s"); done <<< "$IGNORE"
         [ "$SCREENSHOTS" = "true" ] && args+=(--screenshots "$RUNNER_TEMP/overflow-audit-shots")

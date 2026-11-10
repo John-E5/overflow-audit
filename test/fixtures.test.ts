@@ -17,3 +17,15 @@ it('makes /cookie.html depend on the audit cookie', async () => {
   expect(await (await fetch(`${server.url}/cookie.html`)).text()).toContain('login-wall');
   expect(await (await fetch(`${server.url}/cookie.html`, { headers: { cookie: 'audit=1' } })).text()).toContain('signed in');
 });
+
+it('serves /csp.html with a strict Content-Security-Policy', async () => {
+  expect((await fetch(`${server.url}/csp.html`)).headers.get('content-security-policy')).toBe("style-src 'self'");
+});
+
+it('closes even while /never.png is still waiting for an answer', async () => {
+  const own = await serveFixtures();
+  const pending = fetch(`${own.url}/never.png`).catch(() => 'dropped');
+  await new Promise((r) => setTimeout(r, 100));
+  await own.close();
+  expect(await pending).toBe('dropped');
+});

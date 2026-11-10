@@ -3,12 +3,12 @@ import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { parseArgs } from 'node:util';
-import { audit, DEFAULT_SETTLE_MS, type AuditOptions } from './audit.js';
+import { audit, DEFAULT_SETTLE_MS, DEFAULT_TIMEOUT_MS, type AuditOptions } from './audit.js';
 import { exitCode, formatResult, summary } from './report.js';
 import { parseUrlList } from './urls.js';
 
 const USAGE = `Usage: overflow-audit [urls...] [--file urls.txt] [--base URL]
-                      [--width 390]... [--settle 1500] [--setup ./login.mjs]
+                      [--width 390]... [--settle 1500] [--timeout 30000] [--setup ./login.mjs]
                       [--screenshots dir] [--ignore selector]... [--json]
 
 Visits each page at phone width and fails when anything makes it scroll sideways.
@@ -28,6 +28,7 @@ function parse() {
         base: { type: 'string' },
         width: { type: 'string', multiple: true },
         settle: { type: 'string' },
+        timeout: { type: 'string' },
         setup: { type: 'string' },
         screenshots: { type: 'string' },
         ignore: { type: 'string', multiple: true },
@@ -67,6 +68,7 @@ async function main(): Promise<number> {
     base: values.base,
     widths: (values.width ?? []).map((w) => wholeNumber('--width', w, { positive: true })),
     settleMs: values.settle === undefined ? DEFAULT_SETTLE_MS : wholeNumber('--settle', values.settle, { positive: false }),
+    timeoutMs: values.timeout === undefined ? DEFAULT_TIMEOUT_MS : wholeNumber('--timeout', values.timeout, { positive: true }),
     screenshotsDir: values.screenshots,
     ignore: values.ignore,
   };
