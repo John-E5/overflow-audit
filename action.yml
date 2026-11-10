@@ -1,0 +1,80 @@
+name: overflow-audit
+description: Fail when a page scrolls sideways on a phone. Names the elements that stick out and uploads screenshots.
+author: John Ennis
+branding:
+  icon: smartphone
+  color: orange
+
+inputs:
+  urls:
+    description: URLs or paths to check, one per line.
+    default: ""
+  file:
+    description: A file listing URLs or paths, one per line (# comments allowed).
+    default: ""
+  base:
+    description: Base URL that paths are resolved against, e.g. http://localhost:3000.
+    default: ""
+  widths:
+    description: Viewport widths in CSS pixels, separated by spaces.
+    default: "390"
+  settle:
+    description: Milliseconds to wait after each page loads.
+    default: "1500"
+  setup:
+    description: Path to an ESM module whose default export signs in (context, { base }) => Promise<void>.
+    default: ""
+  ignore:
+    description: Extra CSS selectors to hide during the check, one per line.
+    default: ""
+  screenshots:
+    description: Upload a full-page screenshot per page and width as a workflow artifact.
+    default: "true"
+  artifact-name:
+    description: Name of the screenshots artifact. Change it when you run the action more than once in a job.
+    default: overflow-audit
+  package:
+    description: npm install spec for the CLI. Pin a version here, e.g. overflow-audit@0.1.
+    default: overflow-audit
+
+runs:
+  using: composite
+  steps:
+    - name: Install overflow-audit and Chromium
+      shell: bash
+      env:
+        PACKAGE: ${{ inputs.package }}
+      run: |
+        npm install --no-save --no-package-lock --no-audit --no-fund --prefix "$RUNNER_TEMP/overflow-audit-cli" "$PACKAGE" playwright
+        "$RUNNER_TEMP/overflow-audit-cli/node_modules/.bin/playwright" install --with-deps chromium
+
+    - name: Run overflow-audit
+      shell: bash
+      env:
+        URLS: ${{ inputs.urls }}
+        FILE: ${{ inputs.file }}
+        BASE: ${{ inputs.base }}
+        WIDTHS: ${{ inputs.widths }}
+        SETTLE: ${{ inputs.settle }}
+        SETUP: ${{ inputs.setup }}
+        IGNORE: ${{ inputs.ignore }}
+        SCREENSHOTS: ${{ inputs.screenshots }}
+      run: |
+        args=()
+        while IFS= read -r u; do [ -n "$u" ] && args+=("$u"); done <<< "$URLS"
+        [ -n "$FILE" ] && args+=(--file "$FILE")
+        [ -n "$BASE" ] && args+=(--base "$BASE")
+        for w in $WIDTHS; do args+=(--width "$w"); done
+        args+=(--settle "$SETTLE")
+        [ -n "$SETUP" ] && args+=(--setup "$SETUP")
+        while IFS= read -r s; do [ -n "$s" ] && args+=(--ignore "$s"); done <<< "$IGNORE"
+        [ "$SCREENSHOTS" = "true" ] && args+=(--screenshots "$RUNNER_TEMP/overflow-audit-shots")
+        "$RUNNER_TEMP/overflow-audit-cli/node_modules/.bin/overflow-audit" "${args[@]}"
+
+    - name: Upload screenshots
+      if: always() && inputs.screenshots == 'true'
+      uses: actions/upload-artifact@v7
+      with:
+        name: ${{ inputs.artifact-name }}
+        path: ${{ runner.temp }}/overflow-audit-shots
+        if-no-files-found: ignore

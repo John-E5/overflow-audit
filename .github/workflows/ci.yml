@@ -1,0 +1,71 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: test (node ${{ matrix.node }})
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node: [22, 24]
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: npm run typecheck
+      - run: npm run build
+      - run: npm test
+
+  action:
+    name: action self-test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+      - name: Pack this commit
+        run: npm ci && npm run build && npm pack && mv overflow-audit-*.tgz "$RUNNER_TEMP/overflow-audit.tgz"
+      - name: Serve the fixture pages
+        run: |
+          PORT=4173 node test/fixtures/serve.mjs &
+          for i in $(seq 1 40); do curl -sf http://127.0.0.1:4173/fits.html > /dev/null && exit 0; sleep 0.25; done
+          echo "::error::fixture server did not start"; exit 1
+      - name: A page that fits passes
+        uses: ./
+        with:
+          package: ${{ runner.temp }}/overflow-audit.tgz
+          base: http://127.0.0.1:4173
+          urls: |
+            /fits.html
+            /scroller.html
+          widths: 390 360
+          settle: "0"
+          artifact-name: fits
+      - name: A page that overflows fails
+        id: overflowing
+        continue-on-error: true
+        uses: ./
+        with:
+          package: ${{ runner.temp }}/overflow-audit.tgz
+          base: http://127.0.0.1:4173
+          urls: /overflows.html
+          settle: "0"
+          artifact-name: overflows
+      - name: Check the overflowing page failed
+        if: steps.overflowing.outcome != 'failure'
+        run: |
+          echo "::error::overflow-audit passed a page that overflows"
+          exit 1
