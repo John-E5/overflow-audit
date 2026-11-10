@@ -83,15 +83,20 @@ export async function audit(options: AuditOptions): Promise<Result[]> {
       try {
         // One page per width, reused across URLs. Cookies, localStorage and sessionStorage carry over from one URL
         // to the next (as they would for a visitor), but not across widths, which each get a fresh context.
-        let page = await context.newPage();
+        const newPage = async () => {
+          const p = await context.newPage();
+          p.setDefaultTimeout(timeoutMs);
+          return p;
+        };
+        let page = await newPage();
         for (const [i, url] of urls.entries()) {
           const shot = options.screenshotsDir ? join(options.screenshotsDir, `${names[i]}@${width}.png`) : undefined;
           const result = await check(page, url, width, ignore, settleMs, timeoutMs, shot);
           results.push(result);
-          if (result.error) {
+          if (result.error || result.screenshotError) {
             // A crashed or wedged page would fail every URL after it, so start the next one on a fresh page.
             await page.close().catch(() => {});
-            page = await context.newPage();
+            page = await newPage();
           }
         }
       } finally {
@@ -152,12 +157,13 @@ async function check(page: Page, url: string, width: number, ignore: string[], s
     await page.waitForLoadState('networkidle', { timeout: NETWORK_IDLE_CAP_MS }).catch(() => {});
     if (settleMs > 0) await page.waitForTimeout(settleMs);
     // One rule per selector, so one invalid selector can't void the others.
-    await page.addStyleTag({ content: ignore.map((s) => `${s}{display:none!important}`).join('\n') });
-    const { overflow, offenders } = (await page.evaluate(`(${MEASURE_SOURCE})()`)) as { overflow: number; offenders: string[] };
+    // These run in the page, so a page stuck in a loop would never answer them: give each one timeoutMs.
+    await within(page.addStyleTag({ content: ignore.map((s) => `${s}{display:none!important}`).join('\n') }), timeoutMs, 'hiding ignored elements');
+    const { overflow, offenders } = (await within(page.evaluate(`(${MEASURE_SOURCE})()`), timeoutMs, 'measuring')) as { overflow: number; offenders: string[] };
     const result: Result = { url, width, ok: overflow <= 1 && offenders.length === 0, overflow, offenders };
     if (shot) {
       try {
-        await page.screenshot({ path: shot, fullPage: true });
+        await within(page.screenshot({ path: shot, fullPage: true }), timeoutMs, 'the screenshot');
         result.screenshot = shot;
       } catch (err) {
         result.screenshotError = firstLine(err);
@@ -166,6 +172,19 @@ async function check(page: Page, url: string, width: number, ignore: string[], s
     return result;
   } catch (err) {
     return failed(firstLine(err));
+  }
+}
+
+/** Rejects when `promise` hasn't settled within `ms`. The page is then closed, which settles the promise too. */
+async function within<T>(promise: Promise<T>, ms: number, what: string): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new Error(`${what} timed out after ${ms}ms: the page stopped answering`)), ms);
+  });
+  try {
+    return await Promise.race([promise, timeout]);
+  } finally {
+    clearTimeout(timer);
   }
 }
 

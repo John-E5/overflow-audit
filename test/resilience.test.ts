@@ -29,9 +29,9 @@ describe('pages that fight back', () => {
     expect(next?.error).toBeUndefined();
   });
 
-  it('starts a fresh page after a page crashes', async () => {
-    const [crashed, next] = await audit({ base: server.url, urls: ['chrome://crash', '/fits.html'], settleMs: 0 });
-    expect(crashed?.error).toBeDefined();
+  it('gives up on a page that stops answering after timeoutMs, and carries on with a fresh page', async () => {
+    const [busy, next] = await audit({ base: server.url, urls: ['/busy.html', '/fits.html'], settleMs: 0, timeoutMs: 2000 });
+    expect(busy?.error).toMatch(/timed out after 2000ms/);
     expect(next).toMatchObject({ ok: true });
     expect(next?.error).toBeUndefined();
   });
