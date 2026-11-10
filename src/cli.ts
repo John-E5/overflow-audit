@@ -14,9 +14,12 @@ const USAGE = `Usage: overflow-audit [urls...] [--file urls.txt] [--base URL]
 Visits each page at phone width and fails when anything makes it scroll sideways.
 Exit 0: everything fits. 1: a page overflows. 2: bad arguments, or a page didn't load.`;
 
+/** A message for the user, printed as is, and exit code 2. */
+class UsageError extends Error {}
+
+// Throws rather than calling process.exit, which can cut off output still on its way to a pipe.
 function fail(message: string): never {
-  console.error(message);
-  process.exit(2);
+  throw new UsageError(message);
 }
 
 function parse() {
@@ -88,5 +91,8 @@ main().then(
   (code) => {
     process.exitCode = code;
   },
-  (err: unknown) => fail(`overflow-audit: ${err instanceof Error ? err.message : String(err)}`),
+  (err: unknown) => {
+    console.error(err instanceof UsageError ? err.message : `overflow-audit: ${err instanceof Error ? err.message : String(err)}`);
+    process.exitCode = 2;
+  },
 );

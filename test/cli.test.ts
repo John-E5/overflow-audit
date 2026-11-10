@@ -79,6 +79,11 @@ describe('overflow-audit CLI', () => {
   });
 
   it('exits 2 on bad arguments', async () => {
+    const unknown = await run(['--base', server.url, '/fits.html', '--nope']);
+    expect(unknown.code).toBe(2);
+    expect(unknown.stderr).toContain("Unknown option '--nope'");
+    expect(unknown.stderr).toContain("2: bad arguments, or a page didn't load.");
+
     const noBase = await run(['/fits.html']);
     expect(noBase.code).toBe(2);
     expect(noBase.stderr).toContain('pass a base URL');
