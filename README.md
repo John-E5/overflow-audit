@@ -30,16 +30,27 @@ OK   http://localhost:3000/blog @360
 1 of 6 checks failed.
 ```
 
-Each offender is `tag#id.class@right`: the element, and where its right edge lands in CSS pixels.
+Each offender is `tag#id.class@right`: the element, and where its right edge lands in CSS pixels. On a right-to-left page it's `@left` instead, so `nav.drawer@-300` sticks out 300px past the left edge.
 
 ## What counts
 
-- **Fails:** the page scrolls sideways, or a visible element's right edge is past the screen.
+- **Fails:** the page scrolls sideways by more than 1px (anything less is rounding), or an element sticks out past the right edge of the screen, or past the left edge on a right-to-left page.
+- **Named:** up to three of the outermost elements that stick out; their children aren't listed again. Elements inside open shadow roots count too, named after their host, as `my-widget>div.wide@600`. When nothing sticks out but the page still scrolls, as with a long word or URL, the element whose text spills out is named.
 - **Passes:**
   - content inside a horizontal scroller (`overflow-x: auto`), such as a wide table;
   - content clipped by an `overflow: hidden` container, such as a carousel;
+  - `position: fixed` elements, such as a closed off-canvas menu parked off screen, because they can't make the page scroll;
+  - shapes drawn outside their `<svg>`, which don't widen the page;
+  - content off the left edge of a left-to-right page (or the right edge of a right-to-left one), which can't be scrolled to;
   - anything you choose to ignore.
-- **Still fails:** content clipped by `<html>` or `<body>` itself, because that's content your users can't reach.
+- **Still fails:** content clipped by `<html>` or `<body>` itself (see below).
+
+## Good to know
+
+- **`overflow-x: hidden` on `<html>` or `<body>` doesn't fix it on phones.** Chrome on Android still widens the page to fit the content, so it shows zoomed out or wobbles sideways, and overflow-audit (which runs Chromium) still fails it. Clip a wrapper element inside `<body>` instead, or fix the element that sticks out.
+- **Pages without a viewport meta tag pass.** Without `<meta name="viewport" content="width=device-width, initial-scale=1">`, a phone lays the page out 980px wide and shrinks it to fit, so nothing scrolls sideways. The page will be tiny, though, so add the tag.
+- **Paths resolve like links do.** A path starting with `/` replaces the base URL's path, so `/intro` against `--base https://x.com/app` gives `https://x.com/intro`. Leave off the leading slash (`intro`) to get `https://x.com/app/intro`.
+- **Off-canvas menus and right-to-left pages are handled.** A closed menu that is `position: fixed` passes, because it can't make the page scroll. One that is `position: absolute` fails, because it can. On a right-to-left page, content past the left edge is what counts.
 
 ## Options
 
