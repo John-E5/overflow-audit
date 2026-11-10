@@ -14,6 +14,10 @@ const PAGES = [
   '/abs-escape.html',
   '/wrapper.html',
   '/subpixel.html',
+  '/contain-paint.html',
+  '/content-visibility.html',
+  '/fixed-held.html',
+  '/body-text.html',
 ];
 let server: Awaited<ReturnType<typeof serveFixtures>>;
 let results: Result[];
@@ -72,5 +76,24 @@ describe('measuring like a phone', () => {
 
   it('allows 1px for rounding, for the page and for elements alike', () => {
     expect(find('/subpixel.html')).toMatchObject({ ok: true, offenders: [] });
+  });
+
+  it('passes content clipped by paint containment, including a long word', () => {
+    expect(find('/contain-paint.html')).toMatchObject({ ok: true, overflow: 0, offenders: [] });
+  });
+
+  it('passes content inside content-visibility, which clips like paint containment', () => {
+    expect(find('/content-visibility.html')).toMatchObject({ ok: true, overflow: 0, offenders: [] });
+  });
+
+  it('names fixed elements that will-change, backdrop-filter or a container make scroll with the page', () => {
+    expect(find('/fixed-held.html')).toMatchObject({ ok: false, offenders: ['div.wc@600', 'div.bf@600', 'div.ct@600'] });
+  });
+
+  it('names <body> when text directly inside it runs past the edge', () => {
+    const r = find('/body-text.html');
+    expect(r.ok).toBe(false);
+    expect(r.offenders).toHaveLength(1);
+    expect(r.offenders[0]).toMatch(/^body@\d+$/);
   });
 });
