@@ -17,9 +17,9 @@ export interface Result {
   width: number;
   /** True when the page doesn't scroll sideways and no element sticks out. */
   ok: boolean;
-  /** How many pixels the page scrolls sideways (0 or less means none). */
+  /** How many pixels the page scrolls sideways. 1 or less is rounding, and passes. */
   overflow: number;
-  /** Up to three elements past the right edge, as `tag#id.class@right`. */
+  /** Up to three elements past the edge, as `tag#id.class@right` (`@left` on a right-to-left page). */
   offenders: string[];
   /** Path of the full-page screenshot, when screenshots are on. */
   screenshot?: string;
@@ -108,7 +108,7 @@ async function check(page: Page, url: string, width: number, ignore: string[], s
     // One rule per selector, so one invalid selector can't void the others.
     await page.addStyleTag({ content: ignore.map((s) => `${s}{display:none!important}`).join('\n') });
     const { overflow, offenders } = (await page.evaluate(`(${MEASURE_SOURCE})()`)) as { overflow: number; offenders: string[] };
-    const result: Result = { url, width, ok: overflow <= 0 && offenders.length === 0, overflow, offenders };
+    const result: Result = { url, width, ok: overflow <= 1 && offenders.length === 0, overflow, offenders };
     if (dir) {
       result.screenshot = join(dir, `${slug(url)}@${width}.png`);
       await page.screenshot({ path: result.screenshot, fullPage: true });
