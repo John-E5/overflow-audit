@@ -97,9 +97,10 @@ export default async function (context, { base }) {
     widths: 390 360
 ```
 
+- **Versions:** `@v0` follows the latest 0.x release. To pin one, use `@v0.1.0`. Each release of the action installs the CLI released with it.
 - **Prerequisites:** start your app before this step, and use Node 22 or later (`actions/setup-node`).
-- **Screenshots:** they are uploaded as the `overflow-audit` artifact, even when the check fails.
-- **Inputs:** `urls`, `file`, `base`, `widths`, `settle`, `timeout`, `setup`, `ignore` (one per line), `screenshots` (`true` or `false`), `artifact-name`, and `package` (the npm install spec, for pinning a version).
+- **Screenshots:** they are uploaded as the `overflow-audit` artifact, even when the check fails. Running the action more than once in a job? Give each run its own `artifact-name`; each gets its own screenshots.
+- **Inputs:** `urls` (one per line, `#` starts a comment), `file`, `base`, `widths` (separated by spaces), `settle`, `timeout`, `setup`, `ignore` (one per line), `screenshots` (`true` or `false`), `artifact-name`, and `package` (the npm install spec for the CLI).
 
 ## From code
 

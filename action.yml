@@ -7,7 +7,7 @@ branding:
 
 inputs:
   urls:
-    description: URLs or paths to check, one per line.
+    description: URLs or paths to check, one per line (# comments allowed).
     default: ""
   file:
     description: A file listing URLs or paths, one per line (# comments allowed).
@@ -37,8 +37,8 @@ inputs:
     description: Name of the screenshots artifact. Change it when you run the action more than once in a job.
     default: overflow-audit
   package:
-    description: npm install spec for the CLI. Pin a version here, e.g. overflow-audit@0.1.
-    default: overflow-audit
+    description: npm install spec for the CLI. Defaults to the version released with this action.
+    default: overflow-audit@0.1.0 # x-release-please-version
 
 runs:
   using: composite
@@ -63,17 +63,32 @@ runs:
         SETUP: ${{ inputs.setup }}
         IGNORE: ${{ inputs.ignore }}
         SCREENSHOTS: ${{ inputs.screenshots }}
+        SHOTS: ${{ runner.temp }}/overflow-audit-shots/${{ inputs.artifact-name }}
       run: |
+        trim() { local s="$1"; s="${s#"${s%%[![:space:]]*}"}"; printf '%s' "${s%"${s##*[![:space:]]}"}"; }
         args=()
-        while IFS= read -r u; do [ -n "$u" ] && args+=("$u"); done <<< "$URLS"
-        [ -n "$FILE" ] && args+=(--file "$FILE")
-        [ -n "$BASE" ] && args+=(--base "$BASE")
-        for w in $WIDTHS; do args+=(--width "$w"); done
-        args+=(--settle "$SETTLE")
-        args+=(--timeout "$TIMEOUT")
-        [ -n "$SETUP" ] && args+=(--setup "$SETUP")
-        while IFS= read -r s; do [ -n "$s" ] && args+=(--ignore "$s"); done <<< "$IGNORE"
-        [ "$SCREENSHOTS" = "true" ] && args+=(--screenshots "$RUNNER_TEMP/overflow-audit-shots")
+        if [ -n "$FILE" ]; then args+=(--file "$FILE"); fi
+        if [ -n "$BASE" ]; then args+=(--base "$BASE"); fi
+        read -ra widths <<< "$WIDTHS" || true
+        for w in "${widths[@]}"; do args+=(--width "$w"); done
+        if [ -n "$(trim "$SETTLE")" ]; then args+=(--settle "$(trim "$SETTLE")"); fi
+        if [ -n "$(trim "$TIMEOUT")" ]; then args+=(--timeout "$(trim "$TIMEOUT")"); fi
+        if [ -n "$SETUP" ]; then args+=(--setup "$SETUP"); fi
+        # Selectors aren't comments: #main is a selector.
+        while IFS= read -r line; do
+          s="$(trim "$line")"
+          if [ -n "$s" ]; then args+=(--ignore "$s"); fi
+        done <<< "$IGNORE"
+        if [ "$SCREENSHOTS" = "true" ]; then
+          rm -rf "$SHOTS"
+          args+=(--screenshots "$SHOTS")
+        fi
+        # URLs go after --, so one starting with - isn't read as an option.
+        args+=(--)
+        while IFS= read -r line; do
+          u="$(trim "$line")"
+          if [ -n "$u" ] && [ "${u:0:1}" != "#" ]; then args+=("$u"); fi
+        done <<< "$URLS"
         "$RUNNER_TEMP/overflow-audit-cli/node_modules/.bin/overflow-audit" "${args[@]}"
 
     - name: Upload screenshots
@@ -81,5 +96,5 @@ runs:
       uses: actions/upload-artifact@v7
       with:
         name: ${{ inputs.artifact-name }}
-        path: ${{ runner.temp }}/overflow-audit-shots
+        path: ${{ runner.temp }}/overflow-audit-shots/${{ inputs.artifact-name }}
         if-no-files-found: ignore
