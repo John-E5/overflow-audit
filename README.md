@@ -51,7 +51,7 @@ Each offender is `tag#id.class@right`: the element, and where its right edge lan
 | `--settle 1500` | `1500` | Milliseconds to wait after load for animations and late layout |
 | `--timeout 30000` | `30000` | Milliseconds to wait for a page to start rendering before reporting it as an error. A stalled image or tracker doesn't count: the waits for the load event and for the network to go quiet are each capped at 10 s |
 | `--setup ./login.mjs` | | Sign in first (see below) |
-| `--screenshots dir` | | Saves a full-page PNG per page and width |
+| `--screenshots dir` | | Saves a full-page PNG per page and width, named after the path (`pricing@390.png`), with `-2`, `-3` for names that collide. If a screenshot fails, the check still counts and the line notes it |
 | `--ignore selector` | | Hides matching elements during the check. Repeatable. `nextjs-portal` and `[data-overflow-audit-ignore]` are always hidden |
 | `--json` | | Prints the results as JSON |
 
@@ -96,7 +96,7 @@ export default async function (context, { base }) {
 import { audit } from 'overflow-audit';
 
 const results = await audit({ base: 'http://localhost:3000', urls: ['/', '/pricing'], widths: [390, 360] });
-// [{ url, width, ok, overflow, offenders, screenshot?, error? }, ...]
+// [{ url, width, ok, overflow, offenders, screenshot?, screenshotError?, error? }, ...]
 ```
 
 ## Requirements

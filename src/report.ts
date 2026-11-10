@@ -3,8 +3,9 @@ import type { Result } from './audit.js';
 export function formatResult(r: Result): string {
   const where = `${r.url} @${r.width}`;
   if (r.error) return `ERR  ${where} ${r.error}`;
-  if (r.ok) return `OK   ${where}`;
-  return `FAIL ${where} overflow=${r.overflow}px offenders=[${r.offenders.join(', ')}]`;
+  const note = r.screenshotError ? ` (no screenshot: ${r.screenshotError})` : '';
+  if (r.ok) return `OK   ${where}${note}`;
+  return `FAIL ${where} overflow=${r.overflow}px offenders=[${r.offenders.join(', ')}]${note}`;
 }
 
 export function summary(results: Result[]): string {

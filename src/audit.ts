@@ -26,6 +26,8 @@ export interface Result {
   offenders: string[];
   /** Path of the full-page screenshot, when screenshots are on. */
   screenshot?: string;
+  /** Set when screenshots are on but this one couldn't be taken. The measurement still stands. */
+  screenshotError?: string;
   /** Set when the page failed to load or answered HTTP 400 or above. */
   error?: string;
 }
@@ -63,6 +65,7 @@ export async function audit(options: AuditOptions): Promise<Result[]> {
 
   const { chromium } = await loadPlaywright();
   if (options.screenshotsDir) await mkdir(options.screenshotsDir, { recursive: true });
+  const names = screenshotNames(urls);
   const browser = await chromium.launch();
   try {
     const storageState = options.setup ? await runSetup(browser, options.setup, options.base) : undefined;
@@ -81,8 +84,9 @@ export async function audit(options: AuditOptions): Promise<Result[]> {
         // One page per width, reused across URLs. Cookies, localStorage and sessionStorage carry over from one URL
         // to the next (as they would for a visitor), but not across widths, which each get a fresh context.
         let page = await context.newPage();
-        for (const url of urls) {
-          const result = await check(page, url, width, ignore, settleMs, timeoutMs, options.screenshotsDir);
+        for (const [i, url] of urls.entries()) {
+          const shot = options.screenshotsDir ? join(options.screenshotsDir, `${names[i]}@${width}.png`) : undefined;
+          const result = await check(page, url, width, ignore, settleMs, timeoutMs, shot);
           results.push(result);
           if (result.error) {
             // A crashed or wedged page would fail every URL after it, so start the next one on a fresh page.
@@ -100,11 +104,33 @@ export async function audit(options: AuditOptions): Promise<Result[]> {
   }
 }
 
-/** A file-name-safe version of the URL's path and query, for example `/a/b.html?x=1` becomes `a-b-html-x-1`. */
-export function slug(url: string): string {
-  const { pathname, search } = new URL(url);
-  const s = (pathname + search).replace(/[^a-zA-Z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 80);
+/**
+ * A file-name-safe version of the URL's path and query, for example `/a/b.html?x=1` becomes `a-b-html-x-1`.
+ * With `withHost`, the host comes first: `http://h:1/a` becomes `h-1-a`.
+ */
+export function slug(url: string, withHost = false): string {
+  const { host, pathname, search } = new URL(url);
+  const s = ((withHost ? `${host}/` : '') + pathname + search)
+    .replace(/[^a-zA-Z0-9]+/g, '-')
+    .slice(0, 80)
+    .replace(/^-+|-+$/g, '');
   return s || 'index';
+}
+
+/**
+ * One screenshot name per URL, unique within the run: a name that's already taken (ignoring case, for
+ * case-insensitive file systems) gets `-2`, `-3` and so on. Names include the host when the URLs have different hosts.
+ */
+export function screenshotNames(urls: string[]): string[] {
+  const withHost = new Set(urls.map((u) => new URL(u).host)).size > 1;
+  const taken = new Set<string>();
+  return urls.map((url) => {
+    const base = slug(url, withHost);
+    let name = base;
+    for (let n = 2; taken.has(name.toLowerCase()); n++) name = `${base}-${n}`;
+    taken.add(name.toLowerCase());
+    return name;
+  });
 }
 
 async function runSetup(browser: Browser, setup: NonNullable<AuditOptions['setup']>, base: string | undefined): Promise<StorageState> {
@@ -117,7 +143,7 @@ async function runSetup(browser: Browser, setup: NonNullable<AuditOptions['setup
   }
 }
 
-async function check(page: Page, url: string, width: number, ignore: string[], settleMs: number, timeoutMs: number, dir: string | undefined): Promise<Result> {
+async function check(page: Page, url: string, width: number, ignore: string[], settleMs: number, timeoutMs: number, shot: string | undefined): Promise<Result> {
   const failed = (error: string): Result => ({ url, width, ok: false, overflow: 0, offenders: [], error });
   try {
     const response = await page.goto(url, { waitUntil: 'domcontentloaded', timeout: timeoutMs });
@@ -129,14 +155,22 @@ async function check(page: Page, url: string, width: number, ignore: string[], s
     await page.addStyleTag({ content: ignore.map((s) => `${s}{display:none!important}`).join('\n') });
     const { overflow, offenders } = (await page.evaluate(`(${MEASURE_SOURCE})()`)) as { overflow: number; offenders: string[] };
     const result: Result = { url, width, ok: overflow <= 1 && offenders.length === 0, overflow, offenders };
-    if (dir) {
-      result.screenshot = join(dir, `${slug(url)}@${width}.png`);
-      await page.screenshot({ path: result.screenshot, fullPage: true });
+    if (shot) {
+      try {
+        await page.screenshot({ path: shot, fullPage: true });
+        result.screenshot = shot;
+      } catch (err) {
+        result.screenshotError = firstLine(err);
+      }
     }
     return result;
   } catch (err) {
-    return failed(err instanceof Error ? (err.message.split('\n')[0] ?? err.message) : String(err));
+    return failed(firstLine(err));
   }
+}
+
+function firstLine(err: unknown): string {
+  return err instanceof Error ? (err.message.split('\n')[0] ?? err.message) : String(err);
 }
 
 async function loadPlaywright(): Promise<typeof import('playwright')> {
