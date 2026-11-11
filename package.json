@@ -1,6 +1,6 @@
 {
   "name": "overflow-audit",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Fail CI when a page scrolls sideways on a phone. Visits each URL at mobile widths with Playwright and names the elements that stick out.",
   "type": "module",
   "license": "MIT",
