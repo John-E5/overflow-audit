@@ -38,7 +38,7 @@ inputs:
     default: overflow-audit
   package:
     description: npm install spec for the CLI. Defaults to the version released with this action.
-    default: overflow-audit@0.1.0 # x-release-please-version
+    default: overflow-audit@0.2.0 # x-release-please-version
 
 runs:
   using: composite
