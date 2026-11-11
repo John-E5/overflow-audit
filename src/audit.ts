@@ -156,11 +156,7 @@ async function check(page: Page, url: string, width: number, ignore: string[], s
     await page.waitForLoadState('load', { timeout: LOAD_CAP_MS }).catch(() => {});
     await page.waitForLoadState('networkidle', { timeout: NETWORK_IDLE_CAP_MS }).catch(() => {});
     if (settleMs > 0) await page.waitForTimeout(settleMs);
-    // One rule per selector, so one invalid selector can't void the others.
-    // These run in the page, so a page stuck in a loop would never answer them: give each one timeoutMs.
-    await within(page.addStyleTag({ content: ignore.map((s) => `${s}{display:none!important}`).join('\n') }), timeoutMs, 'hiding ignored elements');
-    const { overflow, offenders } = (await within(page.evaluate(`(${MEASURE_SOURCE})()`), timeoutMs, 'measuring')) as { overflow: number; offenders: string[] };
-    const result: Result = { url, width, ok: overflow <= 1 && offenders.length === 0, overflow, offenders };
+    const result: Result = { url, width, ...(await measure(page, ignore, timeoutMs)) };
     if (shot) {
       try {
         await within(page.screenshot({ path: shot, fullPage: true }), timeoutMs, 'the screenshot');
@@ -173,6 +169,39 @@ async function check(page: Page, url: string, width: number, ignore: string[], s
   } catch (err) {
     return failed(firstLine(err));
   }
+}
+
+export interface Measurement {
+  /** True when the page doesn't scroll sideways and no element sticks out. */
+  ok: boolean;
+  /** How many pixels the page scrolls sideways (0 or less means none). */
+  overflow: number;
+  /** Up to three elements past the edge, as `tag#id.class@edge`. */
+  offenders: string[];
+}
+
+export interface MeasureOptions {
+  /** CSS selectors hidden during the check, added to the defaults. */
+  ignore?: string[];
+  /** How long the page gets to answer. Default 30 000 ms. */
+  timeoutMs?: number;
+}
+
+/**
+ * Measures a page you've already opened, as it is right now: for states a URL can't reach, like an open
+ * menu or a half-filled form. It doesn't navigate or wait for anything; use a mobile-sized context
+ * (`isMobile: true`, e.g. 390px wide) so the page lays out like a phone.
+ */
+export async function measurePage(page: Page, options: MeasureOptions = {}): Promise<Measurement> {
+  return measure(page, [...DEFAULT_IGNORE, ...(options.ignore ?? [])], options.timeoutMs ?? DEFAULT_TIMEOUT_MS);
+}
+
+async function measure(page: Page, ignore: string[], timeoutMs: number): Promise<Measurement> {
+  // One rule per selector, so one invalid selector can't void the others.
+  // These run in the page, so a page stuck in a loop would never answer them: give each one timeoutMs.
+  await within(page.addStyleTag({ content: ignore.map((s) => `${s}{display:none!important}`).join('\n') }), timeoutMs, 'hiding ignored elements');
+  const { overflow, offenders } = (await within(page.evaluate(`(${MEASURE_SOURCE})()`), timeoutMs, 'measuring')) as { overflow: number; offenders: string[] };
+  return { ok: overflow <= 1 && offenders.length === 0, overflow, offenders };
 }
 
 /** Rejects when `promise` hasn't settled within `ms`. The page is then closed, which settles the promise too. */
