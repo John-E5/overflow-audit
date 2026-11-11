@@ -113,6 +113,26 @@ const results = await audit({ base: 'http://localhost:3000', urls: ['/', '/prici
 // [{ url, width, ok, overflow, offenders, screenshot?, screenshotError?, error? }, ...]
 ```
 
+### Menus, dialogs and other interactive states
+
+Some layouts only appear after a click, so no URL can reach them. Open the page yourself with Playwright, get it into that state, then call `measurePage`. It measures the page as it is, without navigating or waiting.
+
+```ts
+import { chromium } from 'playwright';
+import { measurePage } from 'overflow-audit';
+
+const browser = await chromium.launch();
+const context = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
+const page = await context.newPage();
+await page.goto('http://localhost:3000/');
+await page.getByRole('button', { name: 'Open menu' }).click();
+
+const { ok, overflow, offenders } = await measurePage(page); // optional: { ignore: ['.toast'], timeoutMs }
+await browser.close();
+```
+
+Use a mobile context, as above, so the page lays out like a phone. `measurePage` uses the same default ignore list as the CLI.
+
 ## Requirements
 
 Node 22 or later and Playwright 1.40 or later (a peer dependency, so you choose the version), with Chromium installed.
